@@ -36,3 +36,14 @@
 *.exe
 *.out
 *.app
+
+# Compiled pb file
+
+*.pb.cc
+*.pb.h
+
+# Compiled framework
+ncnn.framework/
+
+# IDE
+.idea/

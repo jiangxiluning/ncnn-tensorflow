@@ -26,6 +26,8 @@
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <google/protobuf/text_format.h>
 #include <google/protobuf/message.h>
+#include <google/protobuf/map.h>
+
 
 #include "graph.pb.h"
 
@@ -471,6 +473,10 @@ int main(int argc, char** argv)
         else if (node.op() == "Sum")
         {
             fprintf(pp, "%-16s", "Reduction");
+        }
+        else if (node.op() == "FusedBatchNorm")
+        {
+            fprintf(pp, "%-16s", "BatchNorm");
         }
         else
         {
@@ -1327,6 +1333,84 @@ int main(int argc, char** argv)
             fprintf(pp, " 0=%d", operation);
             fprintf(pp, " 1=%d", dim);
             fprintf(pp, " 2=%f", coeff);
+        }
+        else if (node.op() == "FusedBatchNorm"){
+
+            const tensorflow::TensorProto& scale = weights[node.input(1)];
+            const tensorflow::TensorProto& B = weights[node.input(2)];
+            const tensorflow::TensorProto& mean = weights[node.input(3)];
+            const tensorflow::TensorProto& var = weights[node.input(4)];
+
+            int channels = scale.tensor_shape().dim(0).size(); // data size
+            int dtype = scale.dtype();
+
+            switch (dtype){
+                case 1: //float
+                {
+                    float * scale_tensor = (float *)malloc(sizeof(float) * channels);
+
+                    for(int i=0;i<channels;i++){
+                        scale_tensor[i] = *scale.float_val().data();
+                    }
+
+                    fwrite(scale_tensor, sizeof(float), channels, bp);
+
+                    const float * mean_data = reinterpret_cast<const float *>(mean.tensor_content().c_str());
+                    const float * var_data = reinterpret_cast<const float *>(var.tensor_content().c_str());
+                    const float * b_data = reinterpret_cast<const float *>(B.tensor_content().c_str());
+
+                    fwrite(mean_data, sizeof(float), channels, bp);
+                    fwrite(var_data, sizeof(float), channels, bp);
+                    fwrite(b_data, sizeof(float), channels, bp);
+                    break;
+                }
+
+                case 2: // double
+                {
+                    double * scale_tensor = (double *)malloc(sizeof(double) * channels);
+
+                    for(int i=0;i<channels;i++){
+                        scale_tensor[i] = (double)*scale.float_val().data();
+                    }
+
+                    fwrite(scale_tensor, sizeof(double), channels, bp);
+
+                    const double * mean_data = reinterpret_cast<const double *>(mean.tensor_content().c_str());
+                    const double * var_data = reinterpret_cast<const double *>(var.tensor_content().c_str());
+                    const double * b_data = reinterpret_cast<const double *>(B.tensor_content().c_str());
+
+                    fwrite(mean_data, sizeof(double), channels, bp);
+                    fwrite(var_data, sizeof(double), channels, bp);
+                    fwrite(b_data, sizeof(double), channels, bp);
+                    break;
+                }
+
+                case 6: //half
+                {
+                    channels = (int) (scale.tensor_content().size() / 16);
+
+                    const char * scale_data = reinterpret_cast<const char *>(scale.tensor_content().c_str());
+                    const char * mean_data = reinterpret_cast<const char *>(mean.tensor_content().c_str());
+                    const char * var_data = reinterpret_cast<const char *>(var.tensor_content().c_str());
+                    const char * b_data = reinterpret_cast<const char *>(B.tensor_content().c_str());
+
+                    fwrite(scale_data, 16, channels, bp);
+                    fwrite(mean_data, 16, channels, bp);
+                    fwrite(var_data, 16, channels, bp);
+                    fwrite(b_data, 16, channels, bp);
+                    break;
+                }
+                default:
+                    std::cerr << "Type is not supported." << std::endl;
+
+            }
+            fprintf(pp, " 0=%d", channels);
+
+            tensorflow::AttrValue value_epsilon;
+            if (find_attr_value(node, "epsilon", value_epsilon)){
+                float epsilon = value_epsilon.f();
+                fprintf(pp, " 0=%f", epsilon);
+            }
         }
         else
         {

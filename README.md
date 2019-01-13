@@ -1,3 +1,15 @@
+
+# NCNN for Tensorflow
+
+由于 NCNN 对 Tensorflow 支持不友好，这个项目的存在就是弥补它的不足。
+
+Add tensorflow ops to NCNN.
+
+# Added Ops
+
+- BatchNorm
+
+
 ![](https://raw.githubusercontent.com/Tencent/ncnn/master/images/256-ncnn.png)
 # ncnn
 
